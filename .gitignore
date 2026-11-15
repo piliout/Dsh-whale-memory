@@ -1,0 +1,17 @@
+# 运行时数据 —— 含真实聊天记录、群友 QQ 号、结构化记忆，严禁提交
+whale-memory.json
+archive.db
+archive.db-shm
+archive.db-wal
+*.tmp-*
+.revisions/
+
+# 生成的可视化面板（内嵌了真实记忆数据，严禁提交）
+memory-graph.html
+
+# 依赖
+node_modules/
+
+# 系统
+.DS_Store
+Thumbs.db

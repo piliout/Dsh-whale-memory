@@ -1,0 +1,23 @@
+{
+  "name": "whale-memory",
+  "version": "0.1.0",
+  "description": "dsh-onebot-qq 记忆子插件：结构化记忆（话题/印象/教训/日记）+ 消息归档 FTS5 检索 + 自动回忆 + 3D 可视化记忆网络，让 DSH 摆脱 qq-bridge。",
+  "license": "MIT",
+  "type": "module",
+  "keywords": [
+    "dsh",
+    "dsh-onebot-qq",
+    "subplugin",
+    "memory",
+    "deepseek-harness",
+    "onebot",
+    "snowluma"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/piliout/dsh-whale-memory.git"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
