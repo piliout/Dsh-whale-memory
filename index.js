@@ -297,19 +297,23 @@ export default {
     // ── 工具：whale_memory_query ────────────────────────────────────────
     tool('whale_memory_query', {
       description: '查本会话（或指定会话）的记忆：进行中的话题、未说的念头、群友印象、主人的教训、最近的日记。记忆缺失不代表从未发生。认人只看 QQ 号。'
-        + '**注意快照是按预算截断的**（印象这段只列前 40 个且可能被切尾）：要回答「总共有多少群友印象」看返回的 impressionCount；'
-        + '要查某个具体的人，用 q 传昵称/QQ/标签片段拿完整记录；要看全部人名清单传 impressions="all"。',
+        + '**默认只返回「目录摘要」（各分类条数 + 最近话题标题，轻量省 token）**；要看某类正文再传 category=topic/thought/lesson/diary/all。'
+        + '查具体的人用 q（昵称/QQ/标签片段，模糊匹配→先看 uid 认人）；要全部人名清单传 impressions="all"。'
+        + '「总共有多少群友印象」看返回的 impressionCount（别数行数）。',
       parameters: {
         target: { type: 'string', description: '会话目标 group:群号 或 private:QQ号；不填默认本轮会话' },
         q: { type: 'string', description: '按昵称 / QQ / 印象标签 过滤群友印象（**模糊匹配**：会连"标签里只是提到过她"的人也一起命中）→ 拿到结果后**先看 uid 认人**，别只看名字就下结论' },
         impressions: { type: 'string', description: '传 "all" 拿全部印象的紧凑清单（名字+QQ+互动次数，最多 200 条）' },
+        category: { type: 'string', description: '要取正文的分类：topic / thought / lesson / diary / all；不填只返回目录摘要（轻量，省 token）' },
       },
       execute(args = {}) {
-        syncLimits();
+        const lim = syncLimits();
         const turn = bot.currentTurn?.() || null;
         const target = validChatKey(String(args.target || '')) ? String(args.target) : (turn?.chatKey || '');
         if (!validChatKey(target)) return { ok: false, error: '会话标识无效' };
         const impressionCount = Object.keys(state.impressions).length;
+        const now = Date.now();
+        const topicWindow = lim.topicDays * 24 * 60 * 60 * 1000;
 
         // 模式 A：按条件查人（不贴整份快照，省 token）
         const wantAll = String(args.impressions || '').toLowerCase() === 'all';
@@ -332,14 +336,43 @@ export default {
           };
         }
 
-        // 模式 B：整份快照（默认）
-        const snap = formatMemorySnapshot(state, target, '', Date.now());
-        const diary = isPrivateKey(target) ? recentDiary(state) : [];
+        const liveTopics = (Array.isArray(state.topics[target]) ? state.topics[target] : [])
+          .filter((t) => t?.text && (!t.lastMentionAt || now - Number(t.lastMentionAt) <= topicWindow));
+        const liveThoughts = (Array.isArray(state.thoughts[target]) ? state.thoughts[target] : [])
+          .filter((t) => t?.text && (!t.expiresAt || now < t.expiresAt));
+
+        // 模式 B：指定分类取正文
+        const cat = String(args.category || '').toLowerCase();
+        if (cat === 'topic') {
+          return { ok: true, target, category: 'topic', topics: liveTopics.map((t) => ({ id: t.id, text: t.text, pendingQuestion: t.pendingQuestion })) };
+        }
+        if (cat === 'thought') {
+          return { ok: true, target, category: 'thought', thoughts: liveThoughts.map((t) => ({ id: t.id, text: t.text, expiresAt: t.expiresAt })) };
+        }
+        if (cat === 'lesson') {
+          return { ok: true, target, category: 'lesson', lessons: state.lessons.slice(-15).map((l) => ({ id: l.id, text: l.text })) };
+        }
+        if (cat === 'diary') {
+          return { ok: true, target, category: 'diary', diary: isPrivateKey(target) ? recentDiary(state) : undefined };
+        }
+        if (cat === 'all') {
+          const snap = formatMemorySnapshot(state, target, '', now);
+          const diary = isPrivateKey(target) ? recentDiary(state) : [];
+          return { ok: true, target, impressionCount, memory: snap || '（还没有记忆）', diary: diary.length ? diary : undefined };
+        }
+
+        // 默认：目录摘要（轻量，不贴正文 —— 避免工具结果把前缀缓存打穿）
         return {
           ok: true, target,
-          impressionCount,
-          memory: snap || '（还没有记忆）',
-          diary: diary.length ? diary : undefined,
+          summary: {
+            impressionCount,
+            topicCount: liveTopics.length,
+            topics: liveTopics.slice(-10).map((t) => String(t.text).slice(0, 30)),
+            thoughtCount: liveThoughts.length,
+            lessonCount: state.lessons.length,
+            diaryDays: isPrivateKey(target) ? Object.keys(state.diary).sort().slice(-7) : undefined,
+          },
+          hint: '需要正文时传 category=topic/thought/lesson/diary/all；查人用 q 或 impressions="all"。',
         };
       },
     });
