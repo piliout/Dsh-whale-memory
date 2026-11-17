@@ -26,7 +26,7 @@ import path from 'node:path';
 import {
   loadState, saveState,
   appendMemory, removeMemory, saveDiary, recentDiary,
-  formatMemorySnapshot, validChatKey, isPrivateKey, configureLimits,
+  formatMemorySnapshot, validChatKey, isPrivateKey, configureLimits, capImpressions,
 } from './lib/memory.js';
 import {
   openArchive, appendMessage, compactArchive, searchArchive,
@@ -65,6 +65,22 @@ export default {
       type: 'int', default: 50, min: 10, max: 200, step: 5, group: '鲸鱼记忆', label: '群友印象上限',
       hint: '超了优先淘汰「只见过一面且 7 天未出现」的人。',
     },
+    topicCap: {
+      type: 'int', default: 12, min: 1, max: 50, group: '鲸鱼记忆', label: '每会话话题上限',
+      hint: '每个群/私聊保留多少条进行中的话题，超了淘汰最久没提的。以前硬编码 12。',
+    },
+    thoughtCap: {
+      type: 'int', default: 20, min: 1, max: 50, group: '鲸鱼记忆', label: '每会话念头上限',
+      hint: '每个会话保留多少条未过期的念头，超了淘汰最早的。以前硬编码 20。',
+    },
+    lessonCap: {
+      type: 'int', default: 50, min: 5, max: 200, group: '鲸鱼记忆', label: '教训上限',
+      hint: '跨群共享的教训条数，超了淘汰最早的。以前硬编码 50。',
+    },
+    traitCap: {
+      type: 'int', default: 8, min: 1, max: 20, group: '鲸鱼记忆', label: '每人标签上限',
+      hint: '单个群友最多保留几条印象标签，超了淘汰最早的。以前硬编码 8。',
+    },
     recallEnabled: {
       type: 'bool', default: true, group: '鲸鱼记忆', label: '自动回忆',
       hint: '消息出现回忆词（上次/之前/记得/昨天…）或印象里的人名时，自动检索旧话注入。',
@@ -87,10 +103,17 @@ export default {
     };
     const memDir = dataDirOf();
 
-    // 把控制台的两个上限同步进记忆核心（默认值与旧行为一致）
+    // 把控制台的各个上限同步进记忆核心（默认值与旧行为一致）
     const syncLimits = () => {
       const c = cfgOf();
-      return configureLimits({ topicDays: c.topicInjectDays, impressionCap: c.maxImpressions });
+      return configureLimits({
+        topicDays: c.topicInjectDays,
+        impressionCap: c.maxImpressions,
+        topicCap: c.topicCap,
+        thoughtCap: c.thoughtCap,
+        lessonCap: c.lessonCap,
+        traitCap: c.traitCap,
+      });
     };
     syncLimits();
 
@@ -106,6 +129,18 @@ export default {
     catch (e) { log.error(`[鲸鱼记忆] 归档库打开失败（记忆仍可用，检索功能停用）：${e?.message ?? e}`); }
 
     const compactNow = (why) => {
+      // 总开关关掉后不该再删数据：压缩会把超期正文清空，属破坏性写盘，
+      // 而 README 对关开关的承诺是「不注入、不记录，数据保留」。
+      if (!on()) return;
+      // 印象裁剪不能只挂在「写入新印象」上：存量一旦超过上限，不写就一直挂着。
+      // 搭每日/启动压缩的车顺手裁一次；归档库没打开也要照样裁。
+      try {
+        const dropped = capImpressions(state);
+        if (dropped) {
+          persist();
+          log.info(`[鲸鱼记忆] ${why}裁剪印象 ${dropped} 条（上限 ${cfgOf().maxImpressions ?? 50}）`);
+        }
+      } catch (e) { log.error(`[鲸鱼记忆] 印象裁剪失败：${e?.message ?? e}`); }
       if (!db) return;
       try {
         const days = Number(cfgOf().archiveDays) || 90;
@@ -216,7 +251,7 @@ export default {
           return;
         }
         if (c.injectMode === 'pointer') {
-          ev.hint.push('[本会话有记忆：调工具 whale_memory_query 可看共同经历、群友印象、教训与待办。认人只看 QQ 号]');
+          ev.hint.push('[本会话有记忆：调工具 mcp__qq__whale_memory_query 可看共同经历、群友印象、教训与待办。认人只看 QQ 号]');
           if (recall) ev.hint.push(recall);
           return;
         }
@@ -403,11 +438,11 @@ export default {
 
     // ── 工具：whale_memory_remove ───────────────────────────────────────
     tool('whale_memory_remove', {
-      description: '删除一条记忆。类别同 whale_memory_append。按 id 精确删，或按 content 全文匹配删。',
+      description: '删除一条记忆。类别同 mcp__qq__whale_memory_append。按 id 精确删，或按 content 全文匹配删。',
       parameters: {
         category: { type: 'string', required: true, description: 'topic / thought / impression / lesson' },
         content: { type: 'string', description: '要删的内容原文（或印象的 QQ号/昵称）' },
-        id: { type: 'string', description: '条目 id（whale_memory_query 里可见）' },
+        id: { type: 'string', description: '条目 id（mcp__qq__whale_memory_query 里可见）' },
       },
       execute(args = {}) {
         const bad = disabled();
