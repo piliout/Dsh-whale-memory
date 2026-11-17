@@ -231,6 +231,26 @@ check('onDispose 交了定时器清理（否则重载会叠实例）', () => {
   assert.ok(disposers.length >= 1, '没注册任何 onDispose');
 });
 
+check('whale_memory_query 默认返回目录摘要（不贴正文，省 token）', () => {
+  const dir = path.join(tmpRoot, 'q1');
+  const { bot, tools } = makeBot(dir);
+  plugin.setup(bot);
+  tools.get('whale_memory_append').execute({ category: 'topic', content: '明天去爬山', target: 'group:123456' });
+  tools.get('whale_memory_append').execute({ category: 'lesson', content: '别学坏' });
+  const r = tools.get('whale_memory_query').execute({}); // 不传 category
+  assert.equal(r.ok, true);
+  assert.ok(r.summary, '缺 summary 目录');
+  assert.equal(r.summary.lessonCount, 1);
+  assert.ok(Array.isArray(r.summary.topics) && r.summary.topics.length === 1, '目录里应有 1 条话题标题');
+  assert.equal(r.memory, undefined, '默认不该贴正文');
+  // 指定分类才给正文
+  const t = tools.get('whale_memory_query').execute({ category: 'topic' });
+  assert.equal(t.category, 'topic');
+  assert.ok(t.topics[0].text.includes('爬山'));
+  const a = tools.get('whale_memory_query').execute({ category: 'all' });
+  assert.ok(a.memory.includes('爬山'), 'category=all 应给整份快照');
+});
+
 check('数据落到 dir 配置目录（不是进程 cwd）', () => {
   const dir = path.join(tmpRoot, 'm');
   const { bot, tools } = makeBot(dir);
