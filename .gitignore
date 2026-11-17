@@ -1,10 +1,7 @@
 # 运行时数据 —— 含真实聊天记录、群友 QQ 号、结构化记忆，严禁提交
 whale-memory.json
-  # 运行时数据 —— 含真实聊天记录、群友 QQ 号、结构化记忆，严禁提交
-  whale-memory.json
-+ # 写盘前备份 .bak 与坏文件留档 .corrupt-* 同属运行时数据（含真实 QQ 号）
-+ whale-memory.json.*
-  archive.db
+# 写盘前备份 .bak 与坏文件留档 .corrupt-* 同属运行时数据（含真实 QQ 号）
+whale-memory.json.*
 archive.db
 archive.db-shm
 archive.db-wal
