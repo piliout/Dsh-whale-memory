@@ -18,6 +18,6 @@
     "url": "https://github.com/piliout/dsh-whale-memory.git"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.5"
   }
 }

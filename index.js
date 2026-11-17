@@ -26,7 +26,7 @@ import path from 'node:path';
 import {
   loadState, saveState,
   appendMemory, removeMemory, saveDiary, recentDiary,
-  formatMemorySnapshot, validChatKey, isPrivateKey, configureLimits,
+  formatMemorySnapshot, validChatKey, isPrivateKey, configureLimits, capImpressions,
 } from './lib/memory.js';
 import {
   openArchive, appendMessage, compactArchive, searchArchive,
@@ -106,6 +106,18 @@ export default {
     catch (e) { log.error(`[鲸鱼记忆] 归档库打开失败（记忆仍可用，检索功能停用）：${e?.message ?? e}`); }
 
     const compactNow = (why) => {
+      // 总开关关掉后不该再删数据：压缩会把超期正文清空，属破坏性写盘，
+      // 而 README 对关开关的承诺是「不注入、不记录，数据保留」。
+      if (!on()) return;
+      // 印象裁剪不能只挂在「写入新印象」上：存量一旦超过上限，不写就一直挂着。
+      // 搭每日/启动压缩的车顺手裁一次；归档库没打开也要照样裁。
+      try {
+        const dropped = capImpressions(state);
+        if (dropped) {
+          persist();
+          log.info(`[鲸鱼记忆] ${why}裁剪印象 ${dropped} 条（上限 ${cfgOf().maxImpressions ?? 50}）`);
+        }
+      } catch (e) { log.error(`[鲸鱼记忆] 印象裁剪失败：${e?.message ?? e}`); }
       if (!db) return;
       try {
         const days = Number(cfgOf().archiveDays) || 90;
@@ -216,7 +228,7 @@ export default {
           return;
         }
         if (c.injectMode === 'pointer') {
-          ev.hint.push('[本会话有记忆：调工具 whale_memory_query 可看共同经历、群友印象、教训与待办。认人只看 QQ 号]');
+          ev.hint.push('[本会话有记忆：调工具 mcp__qq__whale_memory_query 可看共同经历、群友印象、教训与待办。认人只看 QQ 号]');
           if (recall) ev.hint.push(recall);
           return;
         }
@@ -403,11 +415,11 @@ export default {
 
     // ── 工具：whale_memory_remove ───────────────────────────────────────
     tool('whale_memory_remove', {
-      description: '删除一条记忆。类别同 whale_memory_append。按 id 精确删，或按 content 全文匹配删。',
+      description: '删除一条记忆。类别同 mcp__qq__whale_memory_append。按 id 精确删，或按 content 全文匹配删。',
       parameters: {
         category: { type: 'string', required: true, description: 'topic / thought / impression / lesson' },
         content: { type: 'string', description: '要删的内容原文（或印象的 QQ号/昵称）' },
-        id: { type: 'string', description: '条目 id（whale_memory_query 里可见）' },
+        id: { type: 'string', description: '条目 id（mcp__qq__whale_memory_query 里可见）' },
       },
       execute(args = {}) {
         const bad = disabled();

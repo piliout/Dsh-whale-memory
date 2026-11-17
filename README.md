@@ -9,7 +9,7 @@
 | 宿主插件 | [`YUsaltyfish/dsh-onebot-qq`](https://github.com/YUsaltyfish/dsh-onebot-qq)（微内核 + 子插件，契约 `CONTRACT_VERSION = 1`） |
 | **不是** | npm 上的同名包 `dsh-onebot-qq@0.10.x`（那是 `mario841859784/dsh-onebot`，单体 `lib/` 架构：**没有** `plugins/` 目录，也没有 `passive-tap` / `before-turn` / `bot.registerTool`，本插件不会被发现和加载） |
 | DSH | `>= 0.2.1-rc.2 < 0.3.0`（实测 0.2.2-rc.3 可用） |
-| Node | `>= 22`，需 `node:sqlite`（22.5+）与 FTS5 `trigram`（SQLite 3.34+；实测 Node 24.20 自带 3.53 通过） |
+| Node | `>= 22.5`（`node:sqlite` 从 22.5 才有）；FTS5 需 `trigram`（SQLite 3.34+；实测 Node 24.20 自带 3.53 通过）。**低于 22.5 也能装**：归档/检索会自动停用，结构化记忆照常，日志里会说明原因 |
 | 操作系统 | Windows / Linux / macOS 均可（实测 Windows 通过） |
 | 协议端 | 任意 OneBot v11 实现（SnowLuma / NapCat / Lagrange / LLOneBot…），需开正向 WebSocket + HTTP API |
 
