@@ -1,0 +1,22 @@
+# 换行统一：仓库内一律 LF，检出到 Windows 也写 LF。
+# 起因：用 GitHub 网页「Upload files」上传时，Git 会原样保存工作区字节，
+# 而 Windows 工作区是 CRLF —— 结果 7 个文件整个被算作改动（index.js 556 行全变），
+# diff 里看不出真正改了什么。有了这条，任何来源的 CRLF 都会在提交时归一成 LF。
+* text=auto eol=lf
+
+# 明确按文本处理、强制 LF（防止将来有人改上面的默认值）
+*.js    text eol=lf
+*.mjs   text eol=lf
+*.json  text eol=lf
+*.md    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+
+# 二进制：不做换行转换，也不要在 diff 里逐行比对
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.db    binary
+*.zip   binary
