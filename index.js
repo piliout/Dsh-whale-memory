@@ -27,6 +27,7 @@ import {
   loadState, saveState,
   appendMemory, removeMemory, saveDiary, recentDiary,
   formatMemorySnapshot, validChatKey, isPrivateKey, configureLimits, capImpressions,
+  mirrorDiaryFile, mirrorDiaryFiles,
 } from './lib/memory.js';
 import {
   openArchive, appendMessage, compactArchive, searchArchive,
@@ -47,6 +48,11 @@ export default {
     dir: {
       type: 'str', default: '', group: '鲸鱼记忆', label: '数据目录',
       hint: '留空 = <实例数据目录>/whale-memory。相对路径由内核按数据目录解析。改这里需要重载插件（数据目录是启动装配项）。',
+    },
+    diaryDir: {
+      type: 'str', default: '', group: '鲸鱼记忆', label: '日记另存 md 目录',
+      hint: '填了就每篇日记顺手落一份 md（<目录>/YYYY-MM/YYYY-MM-DD-私聊.md），跟旧 qq-bridge 一个习惯；'
+        + '留空 = 只存库、不落文件。改完即时生效，下一次写日记/重载时补齐缺的那几天。',
     },
     injectMode: {
       type: 'enum', default: 'full', group: '鲸鱼记忆', label: '注入方式',
@@ -122,6 +128,20 @@ export default {
       try { saveState(memDir, state); }
       catch (e) { log.error(`[鲸鱼记忆] 写盘失败：${e?.message ?? e}`); }
     };
+
+    // 日记另存 md：目录热读（控制台改完下一次写日记就生效）；留空 = 不落文件
+    const diaryDirOf = () => String(cfgOf().diaryDir || '').trim();
+    const mirrorDiaryOf = (date) => {
+      const dir = diaryDirOf();
+      if (!dir || !on()) return null;
+      try { return mirrorDiaryFile(dir, date, state.diary[date]); }
+      catch (e) { log.error(`[鲸鱼记忆] 日记落 md 失败（${date}）：${e?.message ?? e}`); return null; }
+    };
+    // 启动/重载时补齐历史里缺的那几篇（已有的不动，避免覆盖手改）
+    try {
+      const boot = mirrorDiaryFiles(diaryDirOf(), state, { onlyMissing: true });
+      if (boot.written) log.info(`[鲸鱼记忆] 日记 md 补齐 ${boot.written} 篇 → ${diaryDirOf()}（已有 ${boot.skipped} 篇不动）`);
+    } catch (e) { log.error(`[鲸鱼记忆] 日记 md 补齐失败：${e?.message ?? e}`); }
 
     // 归档 + FTS5 全文索引（keywords 与 text 一起进索引，压缩后仍可搜）
     let db = null;
@@ -471,8 +491,13 @@ export default {
         if (bad) return bad;
         const turn = bot.currentTurn?.() || null;
         if (turn?.chatKey && !isPrivateKey(turn.chatKey)) return { ok: false, error: '日记只写私聊，群聊不写' };
-        const r = saveDiary(state, { date: args.date, text: args.text }, Date.now());
-        if (r.ok) persist();
+        const r = saveDiary(state, { date: args.date, text: args.text, key: turn?.chatKey || '' }, Date.now());
+        if (r.ok) {
+          // 顺手落一份 md（目录没配就是纯库存储，不影响返回值）
+          const mirrored = mirrorDiaryOf(r.date);
+          if (mirrored?.ok) r.md = mirrored.file;
+          persist();
+        }
         return r;
       },
     });
