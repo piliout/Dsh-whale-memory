@@ -130,6 +130,22 @@ check('extractKeywords 提取中文 2-gram', () => {
   assert.ok(kw.length >= 2);
 });
 
+check('常见 2 字词不再条条都中（短查询要有区分度）', () => {
+  const db = openArchive(path.join(tmp, 'a4'));
+  const now = Date.now();
+  // 10 条都含「我们」（放在老的一端，保证落在打分池里），5 条最近的无关消息，1 条生僻词
+  for (let i = 0; i < 10; i++) {
+    appendMessage(db, { key: 'group:123456', t: now - (50 + i) * 60000, self: 0, sender: '乙', text: `今天我们一起吃饭吧${i}` });
+  }
+  for (let i = 0; i < 5; i++) {
+    appendMessage(db, { key: 'group:123456', t: now - (1 + i) * 60000, self: 0, sender: '乙', text: `随便聊聊${i}` });
+  }
+  appendMessage(db, { key: 'group:123456', t: now - 70 * 60000, self: 0, sender: '甲', text: '昨天喝了蛋酒' });
+  assert.equal(searchArchive(db, 'group:123456', '我们', 3).length, 0, '「我们」几乎条条都有，不该算回忆命中');
+  assert.equal(searchArchive(db, 'group:123456', '蛋酒', 3).length, 1, '生僻词仍要能搜到');
+  db.close();
+});
+
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log(`\n结果：${pass} 通过 / ${fail} 失败`);
 process.exit(fail ? 1 : 0);

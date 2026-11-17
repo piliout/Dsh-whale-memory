@@ -65,6 +65,22 @@ export default {
       type: 'int', default: 50, min: 10, max: 200, step: 5, group: '鲸鱼记忆', label: '群友印象上限',
       hint: '超了优先淘汰「只见过一面且 7 天未出现」的人。',
     },
+    topicCap: {
+      type: 'int', default: 12, min: 1, max: 50, group: '鲸鱼记忆', label: '每会话话题上限',
+      hint: '每个群/私聊保留多少条进行中的话题，超了淘汰最久没提的。以前硬编码 12。',
+    },
+    thoughtCap: {
+      type: 'int', default: 20, min: 1, max: 50, group: '鲸鱼记忆', label: '每会话念头上限',
+      hint: '每个会话保留多少条未过期的念头，超了淘汰最早的。以前硬编码 20。',
+    },
+    lessonCap: {
+      type: 'int', default: 50, min: 5, max: 200, group: '鲸鱼记忆', label: '教训上限',
+      hint: '跨群共享的教训条数，超了淘汰最早的。以前硬编码 50。',
+    },
+    traitCap: {
+      type: 'int', default: 8, min: 1, max: 20, group: '鲸鱼记忆', label: '每人标签上限',
+      hint: '单个群友最多保留几条印象标签，超了淘汰最早的。以前硬编码 8。',
+    },
     recallEnabled: {
       type: 'bool', default: true, group: '鲸鱼记忆', label: '自动回忆',
       hint: '消息出现回忆词（上次/之前/记得/昨天…）或印象里的人名时，自动检索旧话注入。',
@@ -87,10 +103,17 @@ export default {
     };
     const memDir = dataDirOf();
 
-    // 把控制台的两个上限同步进记忆核心（默认值与旧行为一致）
+    // 把控制台的各个上限同步进记忆核心（默认值与旧行为一致）
     const syncLimits = () => {
       const c = cfgOf();
-      return configureLimits({ topicDays: c.topicInjectDays, impressionCap: c.maxImpressions });
+      return configureLimits({
+        topicDays: c.topicInjectDays,
+        impressionCap: c.maxImpressions,
+        topicCap: c.topicCap,
+        thoughtCap: c.thoughtCap,
+        lessonCap: c.lessonCap,
+        traitCap: c.traitCap,
+      });
     };
     syncLimits();
 

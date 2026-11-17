@@ -99,10 +99,18 @@
 | `injectMode` | `full` | 见上表 |
 | `topicInjectDays` | `3` | 话题超期不再注入 |
 | `maxImpressions` | `50` | 群友印象上限 |
+| `topicCap` | `12` | 每个会话保留多少条进行中的话题 |
+| `thoughtCap` | `20` | 每个会话保留多少条未过期的念头 |
+| `lessonCap` | `50` | 跨群共享的教训条数 |
+| `traitCap` | `8` | 单个群友最多保留几条印象标签 |
 | `recallEnabled` | `true` | 自动回忆开关 |
 | `archiveDays` | `90` | 原文保留天数（超期只留关键词） |
 
 除 `dir` 外的配置**热改即生效**（代码里每次回调现读 `bot.cfg`，不在 `setup` 顶部解构）。
+
+数据目录里除 `whale-memory.json` / `archive.db` 外，还会有一个 `whale-memory.json.bak`：
+每次写盘前留的上一版（最多 10 分钟刷一次），用来救「读得出来但内容是错的」——
+比如上限调小后把一批印象裁掉了，可以直接拿 `.bak` 回滚。
 
 ## 三条纪律
 
@@ -141,16 +149,17 @@ node build-graph.mjs "<数据目录>/whale-memory.json" "<数据目录>/memory-g
 
 ## 已知限制
 
-- **打分池只看最近 2000 条**（`POOL_LIMIT`）：单会话消息超过 2000 条后，更早的内容只能靠 FTS（≥3 字原话子串）或 2 字 LIKE 命中，2-gram 打分扫不到。
+- **打分池只看最近 2000 条**（`POOL_LIMIT`）：单会话消息超过 2000 条后，更早的内容只能靠 FTS（≥3 字原话子串）命中，2-gram 打分扫不到。
 - 单字查询返回空（与 qq-bridge 一致；请用 ≥2 字）。
+- **2 字查询要求有区分度**：「我们」「那个」这类几乎条条都有的词不会触发回忆（以前会命中一大把）；生僻词照常命中。
 - 检索是进程内同步 SQLite 调用；2 万条单会话实测 214–255 ms、堆峰值 +81 MB（有 30 秒缓存 + `skipRecent` 挡掉高频重复）。消息量特别大的群，可调大 `archiveDays` 或调小 `POOL_LIMIT` 前的窗口。
 
 ## 测试
 
 ```bash
-node test/smoke.mjs             # 记忆核心（13 项）
-node test/archive-smoke.mjs     # 归档检索（10 项）
-node test/host-contract-smoke.mjs  # 接线层：假宿主按契约 v1 跑（15 项）
+node test/smoke.mjs             # 记忆核心（15 项）
+node test/archive-smoke.mjs     # 归档检索（11 项）
+node test/host-contract-smoke.mjs  # 接线层：假宿主按契约 v1 跑（18 项）
 ```
 
 ## 文件
@@ -166,7 +175,7 @@ whale-memory/
 ├── build-graph.mjs             # 生成可视化记忆网络 HTML（3D 神经元）
 ├── examples/sample-data.json   # 脱敏示例数据（生成 README 说明图用）
 ├── docs/                       # README 说明图（脱敏）
-├── test/                       # smoke(13) + archive-smoke(10) + host-contract-smoke(15)
+├── test/                       # smoke(15) + archive-smoke(11) + host-contract-smoke(18)
 ├── package.json / README.md / LICENSE / .gitignore
 ```
 

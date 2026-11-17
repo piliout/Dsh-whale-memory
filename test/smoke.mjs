@@ -1,7 +1,11 @@
 import assert from 'node:assert';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {
   createState, normalizeState, appendMemory, removeMemory,
   saveDiary, recentDiary, formatMemorySnapshot, capImpressions, validChatKey,
+  configureLimits, saveState, loadState, stateFile,
 } from '../lib/memory.js';
 
 let pass = 0, fail = 0;
@@ -116,6 +120,41 @@ check('removeMemory 按内容删除', () => {
   const r = removeMemory(s, { category: 'topic', chatKey: 'group:10001', content: '要删的' });
   assert.equal(r.removed, 1);
   assert.equal(s.topics['group:10001'].length, 0);
+});
+
+check('上限可配（话题/念头/教训/标签）', () => {
+  const def = configureLimits({});
+  assert.equal(def.topicCap, 12);
+  assert.equal(def.traitCap, 8);
+  configureLimits({ topicCap: 5, thoughtCap: 3, lessonCap: 6, traitCap: 2 });
+  const s = createState();
+  for (let i = 0; i < 8; i++) appendMemory(s, { category: 'topic', chatKey: 'group:123456', content: '话题' + i }, 1000 + i);
+  for (let i = 0; i < 6; i++) appendMemory(s, { category: 'thought', chatKey: 'group:123456', content: '念头' + i }, 1000 + i);
+  for (let i = 0; i < 9; i++) appendMemory(s, { category: 'lesson', chatKey: 'group:1', content: '教训' + i }, 1000 + i);
+  for (let i = 0; i < 5; i++) appendMemory(s, { category: 'impression', chatKey: 'group:123456', content: '标签' + i, extra: { uid: '123456' } }, 1000 + i);
+  assert.equal(s.topics['group:123456'].length, 5);
+  assert.equal(s.thoughts['group:123456'].length, 3);
+  assert.equal(s.lessons.length, 6);
+  assert.equal(s.impressions['qq:123456'].traits.length, 2);
+  configureLimits({ topicCap: 12, thoughtCap: 20, lessonCap: 50, traitCap: 8 }); // 复位，不影响后续用例
+});
+
+check('写盘前留 .bak（且不被连续写冲掉）', () => {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'whale-state-'));
+  const s = createState();
+  s.lessons.push({ id: '1', text: '第一版' });
+  saveState(d, s);
+  assert.ok(!fs.existsSync(stateFile(d) + '.bak'), '首次写没有上一版，不该有 .bak');
+  s.lessons.push({ id: '2', text: '第二版' });
+  saveState(d, s);
+  const bak = JSON.parse(fs.readFileSync(stateFile(d) + '.bak', 'utf8'));
+  assert.equal(bak.lessons.length, 1, '.bak 应是上一版（1 条）');
+  s.lessons.push({ id: '3', text: '第三版' });
+  saveState(d, s); // 10 分钟内再写：.bak 不刷新，避免连续写把好版本冲掉
+  const bak2 = JSON.parse(fs.readFileSync(stateFile(d) + '.bak', 'utf8'));
+  assert.equal(bak2.lessons.length, 1);
+  assert.equal(loadState(d).lessons.length, 3);
+  fs.rmSync(d, { recursive: true, force: true });
 });
 
 console.log(`\n结果：${pass} 通过 / ${fail} 失败`);
